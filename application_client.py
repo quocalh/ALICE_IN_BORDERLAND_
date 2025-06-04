@@ -14,8 +14,6 @@ from components.networks import Network
 from components.UI import *
 from components.async_threads import AsyncThreads
 
-
-
 """
 NOTE for the game
 
@@ -41,8 +39,6 @@ QUESTION: dont know whether if "input" game state and "gameshow" game state shou
     
 QUESTION: for people who left mid game, we just change the players bool and the game phase according to it
 """
-
-
 
 
 """
@@ -110,6 +106,13 @@ class ClientApplication:
         self.state_dict["result"] = GameStateResultPhrase(self)
 
         self.current_state: GameState = self.state_dict["lobby"]
+
+        # universal graphic shared among game states                
+        self.lobby_color_frame_sequence: list[tuple[int, int, int]] = [(230, 124, 115), (247, 203, 77), (65, 179, 117), (123, 170, 247), (186, 103, 200)]
+        self.lobby_pposition_sequence: list[np.ndarray] = [np.array((0.5 + 1/6 * (i - 2), 0.5), dtype = np.float64) for i in range(5)]
+        self.lobby_graphic_frame_players: list[GraphicFrame] = []
+        for i in range(5): 
+            self.lobby_graphic_frame_players.append(GraphicFrame(self.lobby_pposition_sequence[i], 1/8, 1/6, self.lobby_color_frame_sequence[i]))
 
         "player pool"
         self.players_pool: list[Player] = []
@@ -180,30 +183,27 @@ class GameStateLobby(GameState):
     def __init__(self, application):
         super().__init__(application)   
         self.waiting_for_players_text: GraphicText = GraphicText((0.5, 0.2), self.application.game_font, "Waiting for players...", True, (255, 255, 255), self.application.WIDTH, self.application.HEIGHT)
-        
-        "resources"
-        self.lobby_color_frame_sequence: list[tuple[int, int, int]] = [(230, 124, 115), (247, 203, 77), (65, 179, 117), (123, 170, 247), (186, 103, 200)]
-        self.lobby_pposition_sequence: list[np.ndarray] = [np.array((0.5 + 1/6 * (i - 2), 0.5), dtype = np.float64) for i in range(5)]
+
         
 
-        self.lobby_graphic_frame_players: list[GraphicFrame] = []
 
-        # grapic frames for real players and ones for bots
-        self.lobby_graphic_frame_bots: list[GraphicFrame] = []
-        for i in range(5): self.lobby_graphic_frame_players.append(GraphicFrame(self.lobby_pposition_sequence[i], 1/8, 1/6, self.lobby_color_frame_sequence[i]))
-        
 
-        for i in range(5): self.lobby_graphic_frame_bots.append(GraphicFrame(self.lobby_pposition_sequence[i], 1/8, 1/6, (200, 200, 200)))
         self.lobby_graphic_text_player_names: list[GraphicText] = []
-
-        # dont use it
-        self.lobby_graphic_text_bot_names: list[GraphicText] = []
-        for i in range(5): self.lobby_graphic_text_bot_names.append(
-            GraphicText(
-                (self.lobby_pposition_sequence[i][0], self.lobby_pposition_sequence[i][1] + 1/9), self.application.game_font, f"Bot{i}", True, (255, 255, 255)))
+        self.previous_players_pool: list[Player] = [] # "this list gonna refreshed every loop at LobbyRenderPlalyerLobby"
+        
         
 
-        self.previous_players_pool: list[Player] = []; "this list gonna refreshed every loop at LobbyRenderPlalyerLobby"
+        # obsolete attribs, it is advised not to use it anywhere
+        # self.lobby_graphic_frame_bots: list[GraphicFrame] = []
+        # for i in range(5): 
+        #     self.lobby_graphic_frame_bots.append(GraphicFrame(self.lobby_pposition_sequence[i], 1/8, 1/6, (200, 200, 200)))
+
+        # self.lobby_graphic_text_bot_names: list[GraphicText] = []
+        # for i in range(5): self.lobby_graphic_text_bot_names.append(
+        #     GraphicText(
+        #         (self.lobby_pposition_sequence[i][0], self.lobby_pposition_sequence[i][1] + 1/9), self.application.game_font, f"Bot{i}", True, (255, 255, 255)))
+        
+
 
         # time
         self.local_time: float = 0
@@ -224,6 +224,10 @@ class GameStateLobby(GameState):
                     self.application.current_state = self.application.state_dict["input"]
                     self.local_time = 0
                     self.remaining_time = self.original_remaining_time
+                    
+                # stress test the multithread in rendering players
+                # if event.key == K_q:
+                #     self.previous_players_pool = []
         
                 
         self.local_time += dt
@@ -253,15 +257,27 @@ class GameStateLobby(GameState):
 
 
 
+    def Thread_UpdateSinglePlayerBannerGraphicText(self, player: Player, i: int): # internal uses only
+        self.lobby_graphic_text_player_names.append(GraphicText(
+            (self.application.lobby_pposition_sequence[i][0], self.application.lobby_pposition_sequence[i][1] + 1/9), self.application.game_font, player.name, True, (255, 255, 255)))
+
+
+
     def LobbyUpdatePlayerBannerGraphicTexts(self, players_pool: list[Player]):
+
+        
         assert len(players_pool) <= 5, Exception("The maximum human clients of this game is 5!")
-        # "check if it is the same secquence of players, if it is updated, then change names"
-        if self.previous_players_pool != players_pool:
+        if self.previous_players_pool != players_pool: # "check if it is the same secquence of players, if it is updated, then change names"
             self.lobby_graphic_text_player_names: list[Player] = []
+            # for i in range(len(players_pool)):
+            #     player: Player = players_pool[i]
+            #     self.lobby_graphic_text_player_names.append(GraphicText(
+            #         (self.application.lobby_pposition_sequence[i][0], self.application.lobby_pposition_sequence[i][1] + 1/9), self.application.game_font, player.name, True, (255, 255, 255)))
+            # trying out new multithread method (almost no improve in performance whatsoever, but just to try it out)
             for i in range(len(players_pool)):
                 player: Player = players_pool[i]
-                self.lobby_graphic_text_player_names.append(GraphicText(
-                    (self.lobby_pposition_sequence[i][0], self.lobby_pposition_sequence[i][1] + 1/9), self.application.game_font, player.name, True, (255, 255, 255)))
+                threads_pool[i%len(threads_pool)].queue.put({"function": self.Thread_UpdateSinglePlayerBannerGraphicText, "args": (player, i)})          
+            AsyncThreads.join_custom(threads_pool)  
 
 
 
@@ -272,16 +288,10 @@ class GameStateLobby(GameState):
         self.LobbyUpdatePlayerBannerGraphicTexts(players_pool)
 
         # "drawing the player banners and colors"
-        for i in range(len(self.lobby_pposition_sequence)): 
-            if i <= len(self.application.players_pool) - 1:
-                # "render the banner"
-                self.lobby_graphic_frame_players[i].Draw(surface, WIDTH, HEIGHT)
-                self.lobby_graphic_text_player_names[i].Draw(surface, WIDTH, HEIGHT)
-            else:
-                # "not yet in the list"
-                raise Exception("this code is shit, will be erased when i rewrite the whole system")
-                self.lobby_graphic_frame_bots   [i].Draw(surface, WIDTH, HEIGHT)    
-                self.lobby_graphic_text_bot_names[i].Draw(surface, WIDTH, HEIGHT)      
+        for i in range(len(self.application.players_pool)): 
+            # "render the banner"
+            self.application.lobby_graphic_frame_players[i].Draw(surface, WIDTH, HEIGHT)
+            self.lobby_graphic_text_player_names[i].Draw(surface, WIDTH, HEIGHT)
         self.previous_players_pool = players_pool 
         
 

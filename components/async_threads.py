@@ -56,6 +56,36 @@ class AsyncThreads(threading.Thread):
     def find_best_thread(threads_pool: list[AsyncThreads]) -> AsyncThreads:
         # find threads with minimal task
         pass
+
+    @staticmethod
+    def join_custom(threads_list: list[AsyncThreads]):
+        """
+        this will be the replicate of the join method (but still maintain its)
+        it just a wait function, waiting for all threads to finnish all of its task before moving on (peak multi threading)
+        how it works:
+            it open the while True loops, that would break if the threads list meets all of the given statement:
+                - all threads in the list must have it .is_busy = False
+                - uhm, that is it
+        """
+        # fuck why am i so stupid :sob:?
+        # while True:
+        #     is_busy = False
+        #     # in other words if it is [False, False, False, True, False,...] then the deeds is not done yet
+        #     # if threads_list.is_busy represent [False, False, False, False, False,...] then we can end the loop
+        #     for thread in threads_list:
+        #         thread: AsyncThreads = thread
+        #         if thread.is_busy == True:
+        #             thread.is_busy = True
+        #             break
+
+        #     if is_busy == False:
+        #         print("break free, joining the main thread...")
+        #         break
+            
+        while not all(not t.is_busy for t in threads_list):
+            time.sleep(0.01) # still look good (a bit delayed (0.01 seconds))
+            pass
+
             
 
     
