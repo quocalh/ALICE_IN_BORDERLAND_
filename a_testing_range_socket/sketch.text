@@ -1,0 +1,58 @@
+import socket
+import _thread
+import sys
+
+
+"""
+Create socket
+Bind the socket (not optional) - get the error (optional)
+Socket match making
+while True:
+{
+    Accept connectiton from clients 
+    Create a thread (synchornization)- running in background
+        {
+            send em pipe bombs (message)
+            while True
+            {
+		try send data
+		if nah, quit
+            }
+        }
+}
+"""
+
+server = 
+port = 
+
+ClientServerSocket = socket.socket(socket.AP_INET, socket.SOCKET_STREAM)
+
+try:
+	ClientServerSocket.bind((server, port))
+except ClientServerSocket.error as e:
+	print(e)
+
+ClientServerSocket.listen(2)
+
+def ContactClient(connection):
+	connection.send(str.encode("Done connecting to the server..."))
+	while True:
+	{
+		try:
+			data_we_got = connection.recv(2048)
+			export_data = str.decode(data_we_got)
+			if not data_we_got:
+				break
+			connection.sendall(str.encode(export_data))
+				
+				
+		except:
+			print("unexpected error. In other words, have no idea what have gone wrong:D")
+			break
+	}
+	connection.close()
+	print("Lost connection)
+
+while True:
+	connection, adress = ClientServerSocket.accept()
+	start_new_thread(ContactClient, (connection, ))
