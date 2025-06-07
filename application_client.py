@@ -38,6 +38,12 @@ QUESTION: dont know whether if "input" game state and "gameshow" game state shou
 
     
 QUESTION: for people who left mid game, we just change the players bool and the game phase according to it
+
+QUESTION: about the internet socket connection (just giving the architecture, not certain about how it will work)
+in the server, create a application for the server first through the main thread
+i think connecting socket (def ClientServerCommunicatingFunction(connecting socket, Server, ID, ...))
+    - OBJECTION: sending info based on the universal dict
+
 """
 
 
@@ -116,6 +122,7 @@ class ClientApplication:
 
         "player pool"
         self.players_pool: list[Player] = []
+        self.previous_players_pool: list[Player] = [] # "this list gonna refreshed every loop at LobbyRenderPlalyerLobby"
 
         "the main player"
         self.number_input: int = -1
@@ -189,7 +196,6 @@ class GameStateLobby(GameState):
 
 
         self.lobby_graphic_text_player_names: list[GraphicText] = []
-        self.previous_players_pool: list[Player] = [] # "this list gonna refreshed every loop at LobbyRenderPlalyerLobby"
         
         
 
@@ -249,7 +255,7 @@ class GameStateLobby(GameState):
 
         self.waiting_for_players_text.Draw(surface, WIDTH, HEIGHT)
 
-        self.LobbyRenderPlayerLobby(self.application.players_pool, surface, WIDTH, HEIGHT)
+        self.LobbyRenderPlayerLobby(surface, WIDTH, HEIGHT)
 
         pg.display.flip()
         pg.display.set_caption(f"{self.application.clock.get_fps() // 1}")
@@ -263,11 +269,10 @@ class GameStateLobby(GameState):
 
 
 
-    def LobbyUpdatePlayerBannerGraphicTexts(self, players_pool: list[Player]):
-
-        
+    def LobbyUpdatePlayerBannerGraphicTexts(self):
+        players_pool: list[Player] = self.application.players_pool
         assert len(players_pool) <= 5, Exception("The maximum human clients of this game is 5!")
-        if self.previous_players_pool != players_pool: # "check if it is the same secquence of players, if it is updated, then change names"
+        if self.application.previous_players_pool != players_pool: # "check if it is the same secquence of players, if it is updated, then change names"
             self.lobby_graphic_text_player_names: list[Player] = []
             # for i in range(len(players_pool)):
             #     player: Player = players_pool[i]
@@ -277,15 +282,15 @@ class GameStateLobby(GameState):
             for i in range(len(players_pool)):
                 player: Player = players_pool[i]
                 threads_pool[i%len(threads_pool)].queue.put({"function": self.Thread_UpdateSinglePlayerBannerGraphicText, "args": (player, i)})          
-            AsyncThreads.join_custom(threads_pool)  
+            AsyncThreads.join_custom(threads_pool, thread_condition)  
 
 
 
-    def LobbyRenderPlayerLobby(self, players_pool: list[Player], surface: pg.surface.Surface, WIDTH: int, HEIGHT: int):
+    def LobbyRenderPlayerLobby(self, surface: pg.surface.Surface, WIDTH: int, HEIGHT: int):
+        players_pool: list[Player] = self.application.players_pool
         assert len(players_pool) <= 5, Exception("The maximum human clients of this game is 5!")
-
         # "update player's banners"
-        self.LobbyUpdatePlayerBannerGraphicTexts(players_pool)
+        self.LobbyUpdatePlayerBannerGraphicTexts()
 
         # "drawing the player banners and colors"
         for i in range(len(self.application.players_pool)): 
@@ -293,7 +298,7 @@ class GameStateLobby(GameState):
             self.application.lobby_graphic_frame_players[i].Draw(surface, WIDTH, HEIGHT)
             self.lobby_graphic_text_player_names[i].Draw(surface, WIDTH, HEIGHT)
         self.previous_players_pool = players_pool 
-        
+
 
 
 class GameStateInputPhrase(GameState):
@@ -430,7 +435,7 @@ class GameStateInputPhrase(GameState):
                     self.graphic_drawing_queue.append(self.graphic_text_button_yes)
                     self.graphic_drawing_queue.append(self.graphic_text_are_u_sure)
                     self.graphic_drawing_queue.append(self.graphic_text_button_no)
-
+                    
                     # rendering command log
                     pass
                     
@@ -486,9 +491,9 @@ class GameStateInputPhrase(GameState):
         for i in range(len(players_pool)):
             player = players_pool[i]
             if type(player) == Bot:
-                print(f"hello thread {thread_id}")
+                print(f"hello thread {thread_id % len(threads_pool)}")
                 # threads_pool[thread_id].queue.put({"function": DelayedHello, "args": ()})
-                threads_pool[thread_id].queue.put({"function": player.GetNumber, "args": ()})
+                threads_pool[thread_id % len(threads_pool)].queue.put({"function": player.GetNumber, "args": ()})
                 thread_id += 1
         print()
 
@@ -546,6 +551,8 @@ class GameStateInputPhrase(GameState):
         for button in self.event_button_pool:
             button.is_clicked = False
 
+
+
     def Render(self, surface: pg.surface.Surface, WIDTH: int = WIDTH, HEIGHT: int = HEIGHT):
         surface.fill((0, 0, 0))
 
@@ -578,14 +585,67 @@ class GameStateResultPhrase(GameState):
 
         /* not really sure about threading either */ DONE easy as fuck :smirk:
 
-    WE DOING GRAPHIC TOMMOROW
+    WE DOING GRAPHIC TOMMOROW ;-; DONE
+
+    HOW CAN I DEAL WITH ANIMATION?
+    a queue?
+    animation particle that manipulates graphic texture position based on the 0 and 1
+    e.g. 
+        GraphicClass.run(graphic, t)
+            with some additional attributes
+        TimeClass(delay)
+
+    queue: list[list[Graphic]] (powerpoint presentation ahh struct)
+    {
+        [Graphic, Graphic],
+        [time],
+        [Graphic, Graphic],
+        [cut_scene_click_trigger],
+        [Graphic, Graphic],
+        [time],
+        ...
+    }
+
+    [[]]
     """
     def __init__(self, application):
         super().__init__(application)
         # graphic
         self.graphic_text_round_over: GraphicText = GraphicText((0.5, 0.1), self.application.game_font, "[ROUND OVER]", True, (255, 255, 255), self.application.WIDTH, self.application.HEIGHT)
     
+    def Thread_UpdateSinglePlayerBannerGraphicText(self, player: Player, i: int): # internal uses only
+        self.lobby_graphic_text_player_names.append(GraphicText(
+            (self.application.lobby_pposition_sequence[i][0], self.application.lobby_pposition_sequence[i][1] + 1/9), self.application.game_font, player.name, True, (255, 255, 255)))
     
+    def LobbyUpdatePlayerBannerGraphicTexts(self):
+        players_pool: list[Player] = self.application.players_pool
+        assert len(players_pool) <= 5, Exception("The maximum human clients of this game is 5!")
+        # "check if it is still the same secquence of players | if it is updated, then change names"
+        if self.application.previous_players_pool != players_pool: 
+            self.lobby_graphic_text_player_names: list[Player] = []
+            for i in range(len(players_pool)): 
+                player: Player = players_pool[i]
+                self.lobby_graphic_text_player_names.append(GraphicText(
+                    (self.application.lobby_pposition_sequence[i][0], self.application.lobby_pposition_sequence[i][1] + 1/9), self.application.game_font, player.name, True, (255, 255, 255)))
+            # trying out new multithread method (almost no improve in performance whatsoever, but just to try it out)
+            # for i in range(len(players_pool)):
+            #     player: Player = players_pool[i]
+            #     threads_pool[i%len(threads_pool)].queue.put({"function": self.Thread_UpdateSinglePlayerBannerGraphicText, "args": (player, i)})          
+            # AsyncThreads.join_custom(threads_pool)  
+
+    def LobbyRenderPlayerLobby(self, surface: pg.surface.Surface, WIDTH: int, HEIGHT: int):
+        players_pool: list[Player] = self.application.players_pool
+        assert len(players_pool) <= 5, Exception("The maximum human clients of this game is 5!")
+        # "update player's banners"
+        self.LobbyUpdatePlayerBannerGraphicTexts()
+
+        # "drawing the player banners and colors"
+        for i in range(len(self.application.players_pool)): 
+            # "render the banner"
+            self.application.lobby_graphic_frame_players[i].Draw(surface, WIDTH, HEIGHT)
+            self.lobby_graphic_text_player_names[i].Draw(surface, WIDTH, HEIGHT)
+        self.previous_players_pool = players_pool 
+        
 
     def CheckIfAllPlayersHaveChosenTheirNumbers_once(self):
         self.CheckIfAllPlayersHaveChosenTheirNumbers_once_reserved = self.CheckIfAllPlayersHaveChosenTheirNumbers_once # this is used to revive it once again
@@ -616,6 +676,8 @@ class GameStateResultPhrase(GameState):
         
         self.graphic_text_round_over.Draw(surface, WIDTH, HEIGHT)
 
+        self.LobbyRenderPlayerLobby(surface, WIDTH, HEIGHT)
+
         pg.display.flip()   
         pg.display.set_caption(f"{self.application.clock.get_fps() // 1}")
         self.application.clock.tick(FPS)
@@ -625,8 +687,9 @@ class GameStateResultPhrase(GameState):
 if __name__ == "__main__":
 
     threads_pool: list[AsyncThreads] = []
-    for i in range(MAX_CPU_CORE):
-        compute_thread = AsyncThreads(queue.Queue())
+    thread_condition = threading.Condition()
+    for i in range(CLIENT_MAX_CPU_CORE):
+        compute_thread = AsyncThreads(queue.Queue(), thread_condition)
         threads_pool.append(compute_thread)
         compute_thread.start()
 

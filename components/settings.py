@@ -28,7 +28,7 @@ port = 5555
 MAX_CLIENT: int = 5
 
 
-MAX_CPU_CORE = 4 
-MAX_CPU_CORE = min(MAX_CPU_CORE, os.cpu_count() - 4) 
-print(f"This program uses {MAX_CPU_CORE} threads")
+CLIENT_MAX_CPU_CORE = 2
+CLIENT_MAX_CPU_CORE = min(CLIENT_MAX_CPU_CORE, os.cpu_count() - 4) 
+print(f"This program uses {CLIENT_MAX_CPU_CORE} threads")
 
