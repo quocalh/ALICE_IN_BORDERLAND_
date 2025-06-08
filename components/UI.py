@@ -40,7 +40,7 @@ class Graphic:
         self.previous_pw: float = self.pw
         self.previous_ph: float = self.ph
 
-    def TextureGetSetAlpha(self, new_a: int = None):
+    def TextureSetAlpha(self, new_a: int = None):
         
         if new_a == None or self.a == new_a:
             pg.surface.Surface.set_alpha(self.texture, self.a)
@@ -81,7 +81,7 @@ class GraphicFrame(Graphic):
             self.texture: pg.surface.Surface = pg.surface.Surface((self.pw * WIDTH, self.ph * HEIGHT))
 
         if self.previous_a != self.a:
-            self.TextureGetSetAlpha()
+            self.TextureSetAlpha()
             self.previous_a = self.a
 
         if self.color != self.previous_color:
@@ -104,7 +104,7 @@ class GraphicTextureNotOptimizedYet(Graphic):
             print(f"warning! the texture has not been defined yet, ({self.Name()})")
         else:
             self.texture: pg.surface.Surface = texture.convert_alpha()
-            self.TextureGetSetAlpha()
+            self.TextureSetAlpha()
             self.Transfrom(WIDTH, HEIGHT)
 
     def Transfrom(self, WIDTH: int = WIDTH, HEIGHT: int = HEIGHT):
@@ -117,7 +117,7 @@ class GraphicTextureNotOptimizedYet(Graphic):
             return
         x =  WIDTH * (self.pposition[0] - self.pw / 2)
         y =  HEIGHT * (self.pposition[1] - self.ph / 2)
-        self.TextureGetSetAlpha()
+        self.TextureSetAlpha()
         surface.blit(self.texture, (x, y))
 
     @classmethod
@@ -140,14 +140,14 @@ class GraphicText(Graphic):
         self.color = color
 
         self.texture: pg.surface.Surface = self.font.render(self.message, anti_alias, self.color).convert_alpha()
-        self.TextureGetSetAlpha()
+        self.TextureSetAlpha()
         self.pw = self.texture.get_width() / WIDTH
         self.ph = self.texture.get_height() / HEIGHT
 
     def ChangeMessage(self, new_message: str, WIDTH: int = WIDTH, HEIGHT: int = HEIGHT):
         """ IDK if this was finnished or not """
         self.texture: pg.surface.Surface = self.font.render(new_message, self.anti_alias, self.color).convert_alpha()
-        self.TextureGetSetAlpha()
+        self.TextureSetAlpha()
         self.pw = self.texture.get_width() / WIDTH
         self.ph = self.texture.get_height() / HEIGHT
 
@@ -166,7 +166,7 @@ class GraphicText(Graphic):
         y =  HEIGHT * (self.pposition[1] - self.ph / 2)
 
         if self.previous_a != self.a:
-            self.TextureGetSetAlpha()
+            self.TextureSetAlpha()
 
         surface.blit(self.texture, (x, y))
 
@@ -443,7 +443,7 @@ class FadeIn(Animation):
                  ):
         self.interval: float = milisecond_interval / 1000
         self.graphic: Graphic = graphic
-        self.graphic.TextureGetSetAlpha(0)
+        self.graphic.TextureSetAlpha(0)
         self.kill_themself = False
         self.t = 0
         self.velocity = 1 / self.interval
@@ -455,7 +455,7 @@ class FadeIn(Animation):
             self.kill_themself = True
         k = self.t
         alpha_value = self.Lerp(0, 255, k)
-        self.graphic.TextureGetSetAlpha(alpha_value)
+        self.graphic.TextureSetAlpha(alpha_value)
 
 class FadeOut(FadeIn):
     def Animating(self, dt):
@@ -465,4 +465,4 @@ class FadeOut(FadeIn):
             self.kill_themself = True
         k = 1 - self.t
         alpha_value = self.Lerp(0, 255, k)
-        self.graphic.TextureGetSetAlpha(alpha_value)
+        self.graphic.TextureSetAlpha(alpha_value)

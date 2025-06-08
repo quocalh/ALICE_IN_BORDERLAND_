@@ -667,7 +667,11 @@ class GameStateResultPhrase(GameState):
                 if event.key == K_o:
                     self.application.current_state = self.application.state_dict["input"]
                 
-
+        "ANYWAYS, KEEP THINKING ABOUT ANIMATION PROCEDURES AND HOW CAN SERVER COMMUNICATE WITH THAT INFORMATION"
+        # i think the server should not really cares about if the player miss an UI cutscene or a game cutscene or what
+        # they just need to give the current state of the cutscene
+        # give the result of the cutscene (new items, ...)
+        # overall, the server sends life-long flag to the clients - differ by game staate and packet size (differ from state to state)
 
 
 

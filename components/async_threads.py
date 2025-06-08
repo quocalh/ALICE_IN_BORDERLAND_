@@ -1,6 +1,15 @@
 import queue
 import time
 import threading
+
+"""
+Condition objects
+A condition variable is always associated with some kind of lock; this can be passed in or one will be created by default. (condition are locks in disguise)
+Passing one in is useful when several condition variables must share the same lock. (threads_pool with threads bind the same Condition objects)
+The lock is part of the condition object: (the lock is automatically sync?)
+    you don’t have to track it separately.
+
+"""
 class AsyncThreads: ...
 class AsyncThreads(threading.Thread):
     thread_id: int = 0
@@ -8,6 +17,7 @@ class AsyncThreads(threading.Thread):
         super().__init__(daemon = True)
 
         self.condition: threading.Condition = condition
+        
 
         self.queue: queue.Queue = action_queue
 
@@ -30,16 +40,6 @@ class AsyncThreads(threading.Thread):
                 print(f"[THREAD: {self.name}]: terminating the thread...")
                 running = False
             else: # found the task
-                # self.busy_processing = True
-                # try:
-                #     # expects action_dict being written as: 
-                #     # action = {"func": the_function, "args": (...)}
-                #     function = action_dict["function"]
-                #     args = action_dict["args"]
-                #     function(*args)
-                # except Exception as error:
-                #     print(f"unexpected problems occured: {error}")
-                # self.busy_processing = False
                 with self.condition:
                     self.busy_processing = True
                 try:
@@ -52,7 +52,7 @@ class AsyncThreads(threading.Thread):
                     print(f"unexpected problems occurred: {error}")
                 with self.condition:
                     self.busy_processing = False
-                    self.condition.notify_all()  # 
+                    self.condition.notify_all() # wake up all the waiting threads in the threads pool that bind the same threading.condition ig
 
     def close(self):
         self.queue.put("exit")
@@ -68,7 +68,7 @@ class AsyncThreads(threading.Thread):
 
     @staticmethod
     def find_best_thread(threads_pool: list[AsyncThreads]) -> AsyncThreads:
-        # find threads with minimal task
+        # find threads with minimal amount of tasks
         pass
 
     # @staticmethod
