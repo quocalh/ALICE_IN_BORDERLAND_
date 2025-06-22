@@ -75,6 +75,7 @@ class AsyncThreads(threading.Thread):
     # def join_custom(threads_list: list[AsyncThreads]):
     #     """
     #     NOTE: can be extremely slow, since the loop is heavy without time.sleep()
+    #           => has been solved with threading.Condition
 
     #     this will be the replicate of the join method (but still maintain its)
     #     it just a wait function, waiting for all threads to finnish all of its task before moving on (peak multi threading)
@@ -87,7 +88,11 @@ class AsyncThreads(threading.Thread):
     #     while not all(not t.is_busy for t in threads_list):
     #         pass
     @staticmethod
-    def join_custom(threads_list: list[AsyncThreads], condition: threading.Condition):
+    def join_custom_all(threads_list: list[AsyncThreads], condition: threading.Condition):
+        # wait for all threads to finnish their works, then join the main thread
+        # this is made only for elementary uses, 
+        # for complicated things, (4 threads in total, 3 threads need to stop, to do it without interfere the fourth thread, 
+        #   well in that case, do it manually)
         with condition:
             condition.wait_for(lambda: all(not t.is_busy for t in threads_list))
 

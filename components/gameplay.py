@@ -9,6 +9,7 @@ class Player:
         self.number: int = -1
         self.vitality: int = 0
         self.is_bot = is_bot
+        self.name = "Mike"
 
     def ChosingNumber(self, overwrited_is_bot: bool = None, overwrite_number: int = None):
         if overwrited_is_bot != None:
@@ -24,7 +25,7 @@ class Player:
             else:
                 self.number = int(input("Give me a number:             "))
 
-class PlayerManager:
+class GameLoop:
     def __init__(self, PlayerPool: list[Player] = []):
         self.player_pool: list[Player] = PlayerPool
         self.ultimate_number: float = -1
@@ -70,6 +71,8 @@ class PlayerManager:
             raise Exception("congrats")
         
         print(f"currently in phase {self.game_phase}")
+        for player in self.player_pool:
+            print(f"{player.name} chose {player.number}... ")
 
         """finding ultimate number"""
         ultimate_number = 0
@@ -99,12 +102,12 @@ class PlayerManager:
                        they will be counted as the losers, proceeding to delete them from the contestants list."""
                     del delta_numbers_dict[delta_number]
 
-        """for players who activate the 3rd rule"""
+        """for players who violate the 3rd rule"""
         PunishemntCoefficient: int = 1
         if self.game_phase <= 3:
             if 0 in delta_numbers_dict:
                 print()
-                print("[GAME]: Damn! someone just activated the 3rd rule, damage casted this round will be doubled (x2).")
+                print("[GAME]: Someone just activated the 3rd rule, damage casted this round will be doubled (x2).")
                 print()
                 PunishemntCoefficient: int = PunishemntCoefficient * 2
 
@@ -173,23 +176,24 @@ class PlayerManager:
                 del self.player_pool[i]
         return len(self.player_pool)
 
-
-Human = Player(False)
-Bot1 = Player()
-Bot2 = Player()
-Bot3 = Player()
-Bot4 = Player()
-
-player_manager = PlayerManager([Human, Bot1, Bot2, Bot3, Bot4])
-
-while True:
-    print("\n\n=======================================")
-    print("Get number phase...")
-    player_manager.PlayerPool_ChosingNumber()
+if __name__ == "__main__":
+        
+    Human = Player(False)
+    Bot1 = Player()
+    Bot2 = Player()
+    Bot3 = Player()
+    Bot4 = Player()
     
-    print("\nChecking Phase...")
-
-    the_winner_list = player_manager.Gameloop()
+    player_manager = GameLoop([Human, Bot1, Bot2, Bot3, Bot4])
+    
+    while True:
+        print("\n\n=======================================")
+        print("Get number phase...")
+        player_manager.PlayerPool_ChosingNumber()
+        
+        print("\nChecking Phase...")
+    
+        the_winner_list = player_manager.Gameloop()
     
     
 

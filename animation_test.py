@@ -11,7 +11,6 @@ pg.init()
 from components.debug_kit import *
 from components.host_table import *
 from components.settings import *
-from components.cards import *
 # from components.host import *
 from components.UI import *
 
@@ -51,9 +50,6 @@ class AnimationLoop:
                     animation: RigidAnimation = RigidAnimation(300, self.card1, self.card2.pposition)
                     self.animation_registry.rigid_animation = animation
                     # self.animation_registry.animation_queue.append(FadeOut(300, self.card1.texture))
-                    
-
-                
         else:
             pass
 

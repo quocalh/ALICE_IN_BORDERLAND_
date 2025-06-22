@@ -13,6 +13,8 @@ from components.settings import *
 from components.networks import Network
 from components.UI import *
 from components.async_threads import AsyncThreads
+from components.animation_and_event import * 
+from components.gameplay import *
 
 """
 NOTE for the game
@@ -89,7 +91,9 @@ class Bot(Player):
 
 
 class ClientApplication:
-    def __init__(self, offline: bool = True, WIDTH: int = WIDTH, HEIGHT: int = HEIGHT):
+    def __init__(self, offline: bool = True, client_id = 0, WIDTH: int = WIDTH, HEIGHT: int = HEIGHT):
+        self.client_id: int = client_id
+
         "local data"
         self.running: bool = True
         self.screen = pg.display.set_mode((WIDTH, HEIGHT))
@@ -106,12 +110,7 @@ class ClientApplication:
         # print(pg.font.get_fonts())
         self.game_font = pg.font.SysFont("newcomputermodern08book", int(min(25 * self.WIDTH / 800, 25 * self.HEIGHT / 800)), False)
 
-        self.state_dict: dict = {}
-        self.state_dict["lobby"] = GameStateLobby(self)
-        self.state_dict["input"] = GameStateInputPhrase(self)
-        self.state_dict["result"] = GameStateResultPhrase(self)
 
-        self.current_state: GameState = self.state_dict["lobby"]
 
         # universal graphic shared among game states                
         self.lobby_color_frame_sequence: list[tuple[int, int, int]] = [(230, 124, 115), (247, 203, 77), (65, 179, 117), (123, 170, 247), (186, 103, 200)]
@@ -134,6 +133,13 @@ class ClientApplication:
 
         self.dt: float = 0
         self.previous_time: float = time.time()
+
+        "state"
+        self.state_dict: dict = {}
+        self.state_dict["lobby"] = GameStateLobby(self)
+        self.state_dict["input"] = GameStateInputPhrase(self)
+        self.state_dict["result"] = GameStateResultPhrase(self)
+        self.current_state: GameState = self.state_dict["lobby"]
 
     def Gameloop_run(self):
         while self.running: 
@@ -282,7 +288,7 @@ class GameStateLobby(GameState):
             for i in range(len(players_pool)):
                 player: Player = players_pool[i]
                 threads_pool[i%len(threads_pool)].queue.put({"function": self.Thread_UpdateSinglePlayerBannerGraphicText, "args": (player, i)})          
-            AsyncThreads.join_custom(threads_pool, thread_condition)  
+            AsyncThreads.join_custom_all(threads_pool, thread_condition)  
 
 
 
@@ -447,6 +453,7 @@ class GameStateInputPhrase(GameState):
                                     # change state to waiting room state
                             self.application.number_input = int(self.data_input)
                             print(f"[MAIN THREAD]: You have made your choice: {self.application.number_input}")
+                            self.application.players_pool[self.application.client_id].number = self.application.number_input # i think it is fucking dumb but i cant figure out the better way
                         if self.button_no.is_clicked:
                             self._focused_UI_node = self._UI_root_node            
                             self.application.number_input = -1
@@ -492,7 +499,7 @@ class GameStateInputPhrase(GameState):
             player = players_pool[i]
             if type(player) == Bot:
                 print(f"hello thread {thread_id % len(threads_pool)}")
-                # threads_pool[thread_id].queue.put({"function": DelayedHello, "args": ()})
+                # threads_pool[thread_id].queue.put({"function": Your_func, "args": ()})
                 threads_pool[thread_id % len(threads_pool)].queue.put({"function": player.GetNumber, "args": ()})
                 thread_id += 1
         print()
@@ -523,13 +530,18 @@ class GameStateInputPhrase(GameState):
 
                 if event.key == K_o:
                     # "testing for local change in game state (settings, UI manager)"
+                    # only change state if all the thread is free
+                    AsyncThreads.join_custom_all(threads_pool, thread_condition)
                     self.application.current_state = self.application.state_dict["lobby"]
                     self.ReviveOneTimeFunction()
                     self.local_time = 0
                     self.remaining_time = self.original_remaining_time
 
                 if event.key == K_p:
+                    # only change state if all the thread is free
+                    AsyncThreads.join_custom_all(threads_pool, thread_condition)
                     self.application.current_state = self.application.state_dict["result"]
+                    threads_pool[0].queue.put({"function": self.application.current_state.game_loop.Gameloop, "args": ()})
                     self.ReviveOneTimeFunction()
                     self.local_time = 0
                     self.remaining_time = self.original_remaining_time
@@ -612,7 +624,30 @@ class GameStateResultPhrase(GameState):
         super().__init__(application)
         # graphic
         self.graphic_text_round_over: GraphicText = GraphicText((0.5, 0.1), self.application.game_font, "[ROUND OVER]", True, (255, 255, 255), self.application.WIDTH, self.application.HEIGHT)
-    
+
+        # self explanation                                      | meanwhile, one thread should be running 
+        # firstly, [round over] tile fade in                    | (has been ran since the player submit their answers), computing for the winners
+        # the banners appear consecutively, players by players  | if had finnished computing for the ans, the responds then be store in the main application, 
+        #                                                       | ready to be overwritten in the next round.
+
+
+        # later work
+        # self.action_list: TimeLineTree = TimeLineTree(
+        #     [TimelineLeaves(CustomAnimation(1000), 2000),
+             
+        #      ]
+        # )
+        self.game_loop: GameLoop = GameLoop(self.application.players_pool)
+
+        self.local_dt: float = 0
+
+    def CreateActionList(self):
+        self.action_list: TimeLineTree = TimeLineTree(
+            [TimelineLeaves(CustomAnimation(1000), 2000), ])
+        for player in self.application.players_pool:
+            pass
+        pass
+
     def Thread_UpdateSinglePlayerBannerGraphicText(self, player: Player, i: int): # internal uses only
         self.lobby_graphic_text_player_names.append(GraphicText(
             (self.application.lobby_pposition_sequence[i][0], self.application.lobby_pposition_sequence[i][1] + 1/9), self.application.game_font, player.name, True, (255, 255, 255)))
@@ -672,7 +707,7 @@ class GameStateResultPhrase(GameState):
         # they just need to give the current state of the cutscene
         # give the result of the cutscene (new items, ...)
         # overall, the server sends life-long flag to the clients - differ by game staate and packet size (differ from state to state)
-
+        # one more thing, animation particle should not die :pensive:
 
 
     def Render(self, surface: pg.surface.Surface, WIDTH: int = WIDTH, HEIGHT: int = HEIGHT):
