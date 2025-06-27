@@ -62,7 +62,7 @@ class GameLoop:
         """
         FIND PLAYERS WHOSE NUMBERS ARE CLOSEST TO THE ULTIMATE NUMBER
         NOTE:
-            keep in mind the rule:
+            keep in mind the terms:
                 4th rule means 4 remaining player
                 3rd rule means 3 remaining player
                 2nd rule means 2 remaining player

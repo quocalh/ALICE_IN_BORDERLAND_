@@ -197,8 +197,6 @@ class GameStateLobby(GameState):
         super().__init__(application)   
         self.waiting_for_players_text: GraphicText = GraphicText((0.5, 0.2), self.application.game_font, "Waiting for players...", True, (255, 255, 255), self.application.WIDTH, self.application.HEIGHT)
 
-        
-
 
 
         self.lobby_graphic_text_player_names: list[GraphicText] = []
@@ -215,7 +213,7 @@ class GameStateLobby(GameState):
         #     GraphicText(
         #         (self.lobby_pposition_sequence[i][0], self.lobby_pposition_sequence[i][1] + 1/9), self.application.game_font, f"Bot{i}", True, (255, 255, 255)))
         
-
+        
 
         # time
         self.local_time: float = 0
@@ -386,7 +384,7 @@ class GameStateInputPhrase(GameState):
             return True
             
 
-        branch: list[UI_Nodes] = self._focused_UI_node.TraceBack()
+        branch: list[UI_Nodes] = self._focused_UI_node.TraceBack() # the heart of the ui nodes system
 
         for node in branch: # activate nodes (the parent nodes those realted to the focused node)
             node.activated = True
@@ -408,7 +406,7 @@ class GameStateInputPhrase(GameState):
             self.graphic_drawing_queue.append(self.button_keypad_submit)
             self.graphic_drawing_queue.append(self.graphic_text_keypad_backspace)
             self.graphic_drawing_queue.append(self.graphic_text_keypad_submit)
-
+            
             # handling events
             if self._focused_UI_node == self._UI_root_node:
                 for i in range(len(self.button_keypad_list)):
@@ -441,10 +439,6 @@ class GameStateInputPhrase(GameState):
                     self.graphic_drawing_queue.append(self.graphic_text_button_yes)
                     self.graphic_drawing_queue.append(self.graphic_text_are_u_sure)
                     self.graphic_drawing_queue.append(self.graphic_text_button_no)
-                    
-                    # rendering command log
-                    pass
-                    
 
                     if self._decision_UI_node == self._focused_UI_node:
                         if self.button_yes.is_clicked:
@@ -521,6 +515,8 @@ class GameStateInputPhrase(GameState):
         self.ResetPlayerNumber_once() # this could also be multi-threaded if it causes performance issue.
         self.PlayerGetMove_once()
         
+        press_p = False
+
         for event in pg.event.get():
             if event.type == QUIT:
                 self.application.running = False
@@ -529,23 +525,18 @@ class GameStateInputPhrase(GameState):
                     self.application.running = False
 
                 if event.key == K_o:
-                    # "testing for local change in game state (settings, UI manager)"
-                    # only change state if all the thread is free
-                    AsyncThreads.join_custom_all(threads_pool, thread_condition)
-                    self.application.current_state = self.application.state_dict["lobby"]
-                    self.ReviveOneTimeFunction()
-                    self.local_time = 0
-                    self.remaining_time = self.original_remaining_time
+                    if all([not thread.is_busy for thread in threads_pool]): # if all threads all free, proceed to next stage check
+                        self.application.current_state = self.application.state_dict["lobby"]
+                        self.ReviveOneTimeFunction()
+                        self.local_time = 0
+                        self.remaining_time = self.original_remaining_time
+                    else:
+                        print("the threads have not done their jobs")
 
                 if event.key == K_p:
-                    # only change state if all the thread is free
-                    AsyncThreads.join_custom_all(threads_pool, thread_condition)
-                    self.application.current_state = self.application.state_dict["result"]
-                    threads_pool[0].queue.put({"function": self.application.current_state.game_loop.Gameloop, "args": ()})
-                    self.ReviveOneTimeFunction()
-                    self.local_time = 0
-                    self.remaining_time = self.original_remaining_time
-
+                    press_p = True
+                    
+            
             if event.type == MOUSEBUTTONDOWN:
                 if event.button == BUTTON_LEFT:
                     self.ButtonEventChecking(pg.mouse.get_pos())
@@ -554,9 +545,23 @@ class GameStateInputPhrase(GameState):
         self.local_time += dt
         self.remaining_time -= dt
 
-        if self.remaining_time <= 1:
-            raise Exception("out of time")
-        
+        if self.remaining_time <= 1 or press_p == True:
+            if all([not thread.is_busy for thread in threads_pool]): # if all threads all free, proceed to next stage check 
+                            if self.application.players_pool[self.application.client_id] == -1 or self.application.number_input == -1: 
+                                print("not yet able to moving onto next stage!")
+                            else:
+                                self.application.current_state = self.application.state_dict["result"]
+                                threads_pool[0].queue.put({"function": self.application.current_state.game_loop.Gameloop, "args": ()})
+                                self.ReviveOneTimeFunction()
+                                self.local_time = 0
+                                self.remaining_time = self.original_remaining_time
+
+                                self.application.number_input = -1
+                                self.data_input = ""
+
+            else:
+                print("the threads have not done their jobs")
+            # raise Exception("Out of time, u took too much time to zink")
 
         self.KeyPadInputValues()
 
@@ -577,14 +582,21 @@ class GameStateInputPhrase(GameState):
 
         self.RenderInputValues(surface, WIDTH, HEIGHT)
 
-        
-
 
         pg.display.flip()
         pg.display.set_caption(f"{self.application.clock.get_fps() // 1}")
         self.application.clock.tick(FPS)
     
     
+
+
+
+
+
+
+
+
+
 class GameStateResultPhrase(GameState):
     """
     this will be activated when the server sends signal to enter this state
@@ -624,14 +636,18 @@ class GameStateResultPhrase(GameState):
         super().__init__(application)
         # graphic
         self.graphic_text_round_over: GraphicText = GraphicText((0.5, 0.1), self.application.game_font, "[ROUND OVER]", True, (255, 255, 255), self.application.WIDTH, self.application.HEIGHT)
-
+        
+        # not sure if that is the good practice
+        # NOTE: the 0th thread run for ans and the 1st thread crafting for animation tree | while the main thread show loading icon 
         # self explanation                                      | meanwhile, one thread should be running 
         # firstly, [round over] tile fade in                    | (has been ran since the player submit their answers), computing for the winners
         # the banners appear consecutively, players by players  | if had finnished computing for the ans, the responds then be store in the main application, 
         #                                                       | ready to be overwritten in the next round.
+        
+        self.graphic_text_be_patient: GraphicText = GraphicText((0.5, 0.5), self.application.game_font, "Computing for results...", True)
+         
 
-
-        # later work
+        # later work for the 1st thread
         # self.action_list: TimeLineTree = TimeLineTree(
         #     [TimelineLeaves(CustomAnimation(1000), 2000),
              

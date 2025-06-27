@@ -6,7 +6,6 @@ import numba as nb
 
 from components.host_table import *
 from components.settings import *
-from components.cards import *
 # from components.host import *
 from components.UI import *
 
