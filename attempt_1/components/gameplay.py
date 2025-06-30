@@ -120,7 +120,7 @@ class GameLoop:
                     print()
                     print("[GAME]: Someone just activated the 2nd rule, people who chose 0 will automatically lose if there are players chose 100.")
                     print()
-                    del delta_numbers_dict[100 - ultimate_number]
+                    del delta_numbers_dict[- ultimate_number]
 
 
         print(f"\t\tultimate number: {ultimate_number}")
