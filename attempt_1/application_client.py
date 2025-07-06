@@ -276,17 +276,18 @@ class GameStateLobby(GameState):
     def LobbyUpdatePlayerBannerGraphicTexts(self):
         players_pool: list[Player] = self.application.players_pool
         assert len(players_pool) <= 5, Exception("The maximum human clients of this game is 5!")
-        if self.application.previous_players_pool != players_pool: # "check if it is the same secquence of players, if it is updated, then change names"
-            self.lobby_graphic_text_player_names: list[Player] = []
+        # if self.application.previous_players_pool != players_pool: # "check if it is the same secquence of players, if it is updated, then change names"
+        self.lobby_graphic_text_player_names: list[Player] = []
             # for i in range(len(players_pool)):
             #     player: Player = players_pool[i]
             #     self.lobby_graphic_text_player_names.append(GraphicText(
             #         (self.application.lobby_pposition_sequence[i][0], self.application.lobby_pposition_sequence[i][1] + 1/9), self.application.game_font, player.name, True, (255, 255, 255)))
             # trying out new multithread method (almost no improve in performance whatsoever, but just to try it out)
-            for i in range(len(players_pool)):
-                player: Player = players_pool[i]
-                threads_pool[i%len(threads_pool)].queue.put({"function": self.Thread_UpdateSinglePlayerBannerGraphicText, "args": (player, i)})          
-            AsyncThreads.join_custom_all(threads_pool, thread_condition)  
+        # FPS ASYNC THREAD BENCHMARK (EXCEPTIONALY WELL)
+        for i in range(len(players_pool)):
+            player: Player = players_pool[i]
+            threads_pool[i%len(threads_pool)].queue.put({"function": self.Thread_UpdateSinglePlayerBannerGraphicText, "args": (player, i)})          
+        AsyncThreads.join_custom_all(threads_pool, thread_condition)  
 
 
 

@@ -13,14 +13,13 @@ class AsyncThread(threading.Thread):
         AsyncThread.thread_id += 1
 
         self.busy_proccessing: bool = False
-        self.busy_queueing: bool = False
 
     def run(self):
         running = True
         while running:       
             # pay attention: this line blocks the loop until there is an item in the queue 
             #   -> optimize, avoid the cpu to loop unecessarily
-            action_ticket: dict = self.queue.get()
+            action_ticket: dict = self.action_queue.get()
 
             if action_ticket["function"] == "exit":
                 running = False
@@ -36,6 +35,7 @@ class AsyncThread(threading.Thread):
                     print(f"unexpected problem occured: {error}")
 
                 with self.condition:
+                    self.busy_proccessing = False
                     self.condition.notify_all()
     
     def close(self):
@@ -48,7 +48,7 @@ class AsyncThread(threading.Thread):
     
     @property
     def busy_queueing(self) -> bool:
-        return self.action_queue.empty()
+        return not self.action_queue.empty()
 
     @property
     def is_busy(self) -> bool:

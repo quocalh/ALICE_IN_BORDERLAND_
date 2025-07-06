@@ -1,5 +1,6 @@
 import numpy as np
 import pygame as pg
+
 from components.settings import *
 
 class Graphic:
@@ -11,7 +12,7 @@ class Graphic:
         self.pw: float = pw
         self.ph: float = ph
 
-        self.texture = pg.surface.Surface = None
+        # self.texture = pg.surface.Surface = pg.surface.Surface
 
         self.visible = True
         self.a: int = 255
@@ -35,18 +36,20 @@ class GraphicFrame(Graphic):
         
         self.texture.fill(color)
     
-    def Draw(self, surface: pg.surface.Surface, WIDTH: int, HEIGHT: int):
+    def Draw(self, surface: pg.surface.Surface, WIDTH: int = WIDTH, HEIGHT: int = HEIGHT):
         if self.visible == False:
             return
         x = WIDTH * (self.pposition[0] - self.pw / 2)
         y = HEIGHT * (self.pposition[1] - self.ph / 2)
 
-        surface.blit(surface, (x, y))
+        surface.blit(self.texture, (x, y))
 
 class GraphicText(Graphic):
-    def __init__(self, pposition, font, 
-                 message: str, anti_alias: bool,
-                 color: tuple[int, int, int],
+    def __init__(self, pposition, 
+                 font, 
+                 message: str, 
+                 anti_alias: bool,
+                 color: tuple[int, int, int] = (255, 255, 255),
                  WIDTH: int = WIDTH,
                  HEIGHT: int = HEIGHT
                  ):
@@ -58,17 +61,20 @@ class GraphicText(Graphic):
 
         self.color: tuple[int, int, int] = color
 
-        self.texture: pg.surface.Surface = self.font.render("message", self.anti_alias, self.color)
+        self.texture: pg.surface.Surface = self.font.render(message, self.anti_alias, self.color)
         self.pw = self.texture.get_width() / WIDTH
         self.ph = self.texture.get_height() / HEIGHT
     
-    def ChangeMessage(self, overwriting_message: str):
-        self.font.render(overwriting_message, self.anti_alias, self.color)
-    
+
+    def ChangeMessage(self, overwriting_message: str, WIDTH: int = WIDTH, HEIGHT: int = HEIGHT):
+        self.message = overwriting_message
+        self.texture = self.font.render(overwriting_message, self.anti_alias, self.color)
+        self.pw = self.texture.get_width() / WIDTH
+        self.ph = self.texture.get_height() / HEIGHT
+
     def Draw(self, surface: pg.surface.Surface):
         x = WIDTH * (self.pposition[0] - self.pw / 2)
         y = HEIGHT * (self.pposition[1] - self.ph / 2)
-
         surface.blit(self.texture, (x, y))
 
 class GraphicTexture(Graphic):
@@ -103,24 +109,22 @@ class Button:
                  WIDTH: int = WIDTH,
                  HEIGHT: int = HEIGHT,
                  ):
-        self.pposition: tuple = pposition
+        self.pposition: tuple = list(pposition)
         self.pw: float = pw
         self.ph: float = ph
 
         if graphic == None:
             self.graphic = GraphicFrame(self.pposition, self.pw, self.ph, (0, 255, 100), WIDTH, HEIGHT)
         else:
+            graphic.pposition = list(graphic.pposition)
             self.graphic: Graphic = graphic
         
-        self.activated = False
+        self.activated: bool = True
         self.is_clicked: bool = False
     
-    def ClickCheck(self, MouseClickingPosition: tuple):
+    def ClickCheck(self, MouseClickingPosition: tuple, WIDTH: int, HEIGHT: int):
         if not self.activated:
             return False
-        
-
-
         if - self.pw / 2 <= MouseClickingPosition[0] / WIDTH - self.pposition[0] <= self.pw / 2:
             if - self.ph / 2 <= MouseClickingPosition[1] / HEIGHT -  self.pposition[1] <= self.ph / 2:
                 self.is_clicked = True
@@ -136,11 +140,16 @@ class Button:
 
 
 
-
 class UI_Node: ...
-
+class UI_Node: 
+    def InsertChildren(self, children_node: UI_Node): pass
 class UI_Node:
-    # root: UI_Node = None
+    """
+    Ideas:
+        we can have a tree as a ui_node 
+            when the focused_node is pointed at the node (that is another UI_tree)
+                the focused_node will receive the info dumped from the small tree, trace it back to the main tree
+    """
     def __init__(self,
                  buttons_list: list[Button] = None,
                  parent: UI_Node = None,
@@ -150,7 +159,10 @@ class UI_Node:
         self.buttons_list: list[Button] = buttons_list if buttons_list else []
         self.occupation = occupation
 
-        self.parent: UI_Node = parent
+        self.parent = parent
+        if parent != None:
+            parent.InsertChildren(self)
+
         self.children_list = children if children else []
         self.generation = 0 if self.parent == None else - 1
 
@@ -173,18 +185,19 @@ class UI_Node:
         for children in root_node.children_list:
             UI_Node.PrintTreeNode(children)
 
-    def TraceBack(self, trace_list: list[UI_Node] = []):
+    def TraceBack(self, trace_list: list[UI_Node] = None):
+        trace_list = trace_list if trace_list else []
         trace_list.append(self)
+
         if self.parent == None:
             return trace_list
-        else:
-            self.TraceBack(trace_list)
+        
+        return self.parent.TraceBack(trace_list)
     
 
 
 
 
-            
             
     
 

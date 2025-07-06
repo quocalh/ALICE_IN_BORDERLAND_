@@ -1,8 +1,10 @@
 import os
 
-WIDTH, HEIGHT = 600, 600
+WIDTH, HEIGHT = 800, 800
+# FPS = 1000
+FPS = 60
 
-FPS = 1000
+PLAYER_NAME = "Daniel"
 
 GAMEPLAY_MINIMUM_VITALITY: int = -5
 
@@ -18,9 +20,9 @@ port = 5555
 
 MAX_CLIENT: int = 5
 
-CLIENT_MAX_CPU_CORE = 2
+CLIENT_MAX_CPU_CORE_USE = 2
 
 
-CLIENT_MAX_CPU_CORE = min(CLIENT_MAX_CPU_CORE, os.cpu_count() - 4)
-print(f"This program uses {CLIENT_MAX_CPU_CORE} threads")
-assert CLIENT_MAX_CPU_CORE >= 0, Exception("[SETUP]: dawg, get a better CPU!")
+CLIENT_MAX_CPU_CORE_USE = min(CLIENT_MAX_CPU_CORE_USE, os.cpu_count() - 4)
+print(f"This program uses {CLIENT_MAX_CPU_CORE_USE} threads")
+assert CLIENT_MAX_CPU_CORE_USE >= 0, Exception("[SETUP]: dawg, get a better CPU!")
