@@ -32,7 +32,7 @@ class AsyncThread(threading.Thread):
                     args = action_ticket["args"]
                     function(*args)
                 except Exception as error:
-                    print(f"unexpected problem occured: {error}")
+                    print(f"[THREAD {self.name}] - ({function.__name__}):Unexpected problem occured: {error}")
 
                 with self.condition:
                     self.busy_proccessing = False

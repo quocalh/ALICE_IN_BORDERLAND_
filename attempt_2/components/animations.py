@@ -1,9 +1,12 @@
-
-
-
-
+from components.UI import *
 
 class CustomAnimation:
+    """
+    1 object can only be binded with 1 Custom Animation
+        multiple binding can cause unexpected behaviors (weird movements) upon the binding object
+    This kind of rigid animation is used for servers-client animation synchronization idk
+        For client - local animation, the thing can be developed to be more sophisticate, good looking
+    """
     def __init__(self, interval_duration: float):
         self.linear_t: float = 0
         
@@ -44,19 +47,29 @@ class CustomAnimation:
     
 
 class TimelineLeaf:
-    def __init__(self, custom_animation: CustomAnimation, wakeup_tick: float, smoothstep_function = None):
+    def __init__(self, custom_animation: CustomAnimation, wakeup_tick: float, binding_object: Graphic, animating_function, smoothstep_function = None):
         self.wakeup_tick: float = wakeup_tick
         self.custom_animation = custom_animation
         self.smoothstep_function = smoothstep_function
+        self.activated: bool = False
+        self.binding_object: Graphic = binding_object
+        self.animating_function = animating_function
 
     def UpdateInterpolation(self, dt: float) -> float:
-        return self.custom_animation.UpdateInterpolation(dt, self.smoothstep_function)
+        t = self.custom_animation.UpdateInterpolation(dt, self.smoothstep_function)
+        self.animating_function(self.binding_object, t)
+        return t
+
 
     def Kayaking(self, time_pointer: float):
+        
+        # the momment the time pointer passes over its birth (wake up tick)
         if (time_pointer - self.wakeup_tick) > 0:
             self.activated = True
+
+        # the time pointer already passed its birth and death (useless)
         if (time_pointer - self.wakeup_tick - self.custom_animation.interval_duration) > 0:
-            print("done animating ...")
+            self.activated = False
         return self.activated
         
     def Reset(self):
@@ -74,11 +87,41 @@ class TimelineTree:
     def Update(self, dt: float):
         self.Tick(dt)
         for leaf in self.timelineleaves_list:
-            if leaf.Kayaking(self.time_pointer):
+            if leaf.Kayaking(self.time_pointer) == True:
                 leaf.UpdateInterpolation(dt)
+
+    def Render(self, surface: pg.surface.Surface, WIDTH: int = WIDTH, HEIGHT: int = HEIGHT):
+        # for leaf in self.timelineleaves_list:
+        #     try:
+        #         leaf.binding_object.Draw(surface, WIDTH, HEIGHT)
+        #     except:
+        #         pass
+        #     try:
+        #         leaf.binding_object.Draw(surface)
+        #     except:
+        #         pass
+        
+        # that shit hides errors so i wont use it, this still hide but it will cause crashes - which is good
+        for leaf in self.timelineleaves_list:
+            try:
+                leaf.binding_object.Draw(surface, WIDTH, HEIGHT)
+            except:
+                leaf.binding_object.Draw(surface)
+
+        
+    def UpdateAndRender(self, dt: float, surface: pg.surface.Surface, WIDTH: int = WIDTH, HEIGHT: int = HEIGHT):
+        self.Tick(dt)
+        for leaf in self.timelineleaves_list:
+            if leaf.Kayaking(self.time_pointer) == True:
+                leaf.UpdateInterpolation(dt)
+            leaf.binding_object.Draw(surface, WIDTH, HEIGHT)
+
 
     def Reset(self):
         for leaf in self.timelineleaves_list:
             leaf.Reset()
         self.time_pointer = 0
+    
+    def get_t(self, index: int):
+        return self.timelineleaves_list[index].custom_animation.t
 

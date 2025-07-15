@@ -15,17 +15,20 @@ class Player:
         self.id_counter += 1 
 
 class KingofDiamonds:
-    def __init__(self):
+    def __init__(self, players_bool: list[Player]):
+        self.players_pool: list[Player] = players_bool
+
+        # REFRESHED EVERY ROUND
         self.ultimate_number: int = -1
-        self.players_pool: list[Player]
+        self.winners_list: list[Player] = []
 
     def GetPlayerRemaining(self):
         return len(self.players_pool)
     
     def Gameloop(self):
         # check for -1
-        for player in self.players_pool:
-            assert player.number != -1, "some of the players have not fill up their numbers"
+        for i, player in enumerate(self.players_pool):
+            assert player.number != -1, f"some of the players have not fill up their numbers (ID-index: {i})"
 
         player_remaining = self.GetPlayerRemaining()
 
@@ -36,6 +39,8 @@ class KingofDiamonds:
             raise Exception("good one")
 
         ultimate_number = sum([player.number for player in self.players_pool]) / len(self.players_pool) * 0.8 
+        ultimate_number = int(ultimate_number)
+        self.ultimate_number = ultimate_number
 
         # each one of the key is a 1D vector
         # scale from itself to the ultimate number (player_number - ult_number)
@@ -80,6 +85,7 @@ class KingofDiamonds:
 
         # (keep in mind that the game can have multiple winners in 1 round)
         the_winning_players: list[Player] = abs_delta_number_dict[the_closest_abs_delta_number]
+        self.winners_list = the_winning_players
 
         
         for player in self.players_pool:

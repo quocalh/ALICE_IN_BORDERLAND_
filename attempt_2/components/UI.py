@@ -12,7 +12,8 @@ class Graphic:
         self.pw: float = pw
         self.ph: float = ph
 
-        # self.texture = pg.surface.Surface = pg.surface.Surface
+        self.original_texture = None
+        self.texture = None
 
         self.visible = True
         self.a: int = 255
@@ -33,8 +34,11 @@ class GraphicFrame(Graphic):
         self.color: tuple[int, int, int] = color
         
         self.texture: pg.surface.Surface = pg.surface.Surface((self.pw * WIDTH, self.ph * HEIGHT))
-        
         self.texture.fill(color)
+
+        self.original_texture: pg.surface.Surface = pg.surface.Surface((self.pw * WIDTH, self.ph * HEIGHT))
+        self.original_texture.fill(color)
+        
     
     def Draw(self, surface: pg.surface.Surface, WIDTH: int = WIDTH, HEIGHT: int = HEIGHT):
         if self.visible == False:
@@ -62,6 +66,8 @@ class GraphicText(Graphic):
         self.color: tuple[int, int, int] = color
 
         self.texture: pg.surface.Surface = self.font.render(message, self.anti_alias, self.color)
+        self.original_texture = self.font.render(message, self.anti_alias, self.color)
+
         self.pw = self.texture.get_width() / WIDTH
         self.ph = self.texture.get_height() / HEIGHT
     
@@ -69,6 +75,7 @@ class GraphicText(Graphic):
     def ChangeMessage(self, overwriting_message: str, WIDTH: int = WIDTH, HEIGHT: int = HEIGHT):
         self.message = overwriting_message
         self.texture = self.font.render(overwriting_message, self.anti_alias, self.color)
+        self.original_texture = self.font.render(overwriting_message, self.anti_alias, self.color)
         self.pw = self.texture.get_width() / WIDTH
         self.ph = self.texture.get_height() / HEIGHT
 
@@ -87,6 +94,8 @@ class GraphicTexture(Graphic):
         super().__init__(pposition, pw, ph)
         self.texture = texture
         self.texture = pg.transform.scale(self.texture, (pw * WIDTH, ph * HEIGHT))
+        self.original_texture = texture
+        self.original_texture = pg.transform.scale(self.original_texture, (pw * WIDTH, ph * HEIGHT))
     
     def Draw(self, surface: pg.surface.Surface):
         x = WIDTH * (self.pposition[0] - self.pw / 2)

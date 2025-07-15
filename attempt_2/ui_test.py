@@ -18,7 +18,14 @@ image4 = GraphicFrame((0.5, 0.75), 0.05, 0.1, (255, 255, 255), WIDTH, HEIGHT)
 image5 = GraphicFrame((0.75, 0.75), 0.05, 0.1, (255, 255, 255), WIDTH, HEIGHT)
 
 button = Button([0.5, 0.5], 0.2, 0.1)
+text_1 = GraphicText((0.5, 0.5), game_font, "nazi", True)
+text_1_original = GraphicText((0.5, 0.5), game_font, "nazi", True)
 
+text_1.pw = 0.2
+text_1.ph = 0.2 
+text_1.texture = pg.transform.scale(text_1_original.texture, (text_1.pw * WIDTH, 0 * HEIGHT))
+text_1.texture = pg.transform.scale(text_1_original.texture, (text_1.pw * WIDTH, text_1.ph * HEIGHT))
+# text_1.texture.fill((255, 255, 0))
 running = True
 while running:
     screen.fill((0, 0, 0))
@@ -34,14 +41,18 @@ while running:
                 button.ClickCheck(pg.mouse.get_pos(), WIDTH, HEIGHT)
                 mouse_leftclick = True
     
+    
     if button.is_clicked and mouse_leftclick:
         print("clicked")
-    
+
     button.Draw(screen)
+    text_1.Draw(screen)
+    
 
     image.Draw(screen)
     image1.Draw(screen)
     image2.Draw(screen)
+
 
     image3.Draw(screen, WIDTH, HEIGHT)
     image4.Draw(screen, WIDTH, HEIGHT)

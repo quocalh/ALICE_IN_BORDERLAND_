@@ -4,6 +4,7 @@ from pygame.locals import *
 import time
 import queue
 import random
+import copy
 
 from components.settings import *
 from components.UI import *
@@ -17,6 +18,7 @@ class Player:
         self.name: str = name
         self.number: int = -1
         self.vitality: int = 0
+        self.old_vitality: int = 0
 
     
 class Bot(Player):
@@ -25,23 +27,31 @@ class Bot(Player):
         if name:
             name = name
         else:
-            name = "bot" + str(Bot.id_couter)
+            name = "Bot" + str(Bot.id_couter)
             Bot.id_couter += 1
         super().__init__(name)
         
     
     def get_number(self, phase: int = 5):
-        print("calculating best number")
+        print("calculating best number...")
         self.number = random.randint(0, 100)
-        time.sleep(1)
-        print(f"The bot {self.name}  has chosen {self.number}")
-
+        time.sleep(0.2)
+        print(f"\tThe bot {self.name}  has chosen [{self.number}]")
+    
+    def thread_get_number(self, phase, thread: AsyncThread):
+        print(f"calculating best number...")
+        self.number = random.randint(0, 100)
+        time.sleep(0.2)
+        print(f"[Thread {thread.name}]: The bot {self.name} has chosen {self.number}.")
 
 class ClientApplication:
-    def __init__(self, client_id: int, offline: bool, threads_pool: list[AsyncThread] = [], WIDTH: int = WIDTH, HEIGHT: int = HEIGHT):
+    def __init__(self, client_id: int, offline: bool, threads_pool: list[AsyncThread] = [], thread_condition: threading.Condition = None, WIDTH: int = WIDTH, HEIGHT: int = HEIGHT):
         self.client_id: int = client_id
         self.offline: bool = offline
         self.threads_pool: list[AsyncThread] = threads_pool
+        self.thread_condition: threading.Condition = thread_condition 
+        if self.thread_condition == None:
+            raise Exception("Caution: The programe only sustain on 1 thread (which is unsupported XD)")
         self.WIDTH = WIDTH
         self.HEIGHT = HEIGHT
 
@@ -59,8 +69,8 @@ class ClientApplication:
 
         self.graphic_frame__lobby_player_banners: list[GraphicFrame] = [GraphicFrame(
             self.lobby_pposition_sequence[i], 
-            1/8, 
-            1/6, 
+            PLAYER_FRAME_PWIDTH, 
+            PLAYER_FRAME_PHEIGHT, 
             self.lobby_player_themecolor_sequence[i], 
             self.WIDTH, 
             self.HEIGHT) 
@@ -88,7 +98,7 @@ class ClientApplication:
         self.state_dict: dict = {}
         self.state_dict["lobby"] = GameStateLobby(self)
         self.state_dict["input"] = GameStateInput(self)
-        self.state_dict["result"] = 0
+        self.state_dict["result"] = GameStateResultPhrase(self)
 
         self.current_state = self.state_dict["lobby"]
     
@@ -300,7 +310,7 @@ class GameStateInput(GameState):
             self.application.HEIGHT) for i in range(12)]
         
 
-        self.UI_Node__numpad_node: UI_Node = UI_Node(buttons_list = self.button__keypads)
+        self.UI_Node__numpad_node: UI_Node = UI_Node(buttons_list = self.button__keypads, occupation = "root node - keypad input")
 
         self.button__yes: Button = Button(
             (0.4375, 0.5), 
@@ -355,7 +365,9 @@ class GameStateInput(GameState):
 
         self.UI_Node_yes_no_node: UI_Node = UI_Node(
             buttons_list = [self.button__yes, self.button__no], 
-            parent = self.UI_Node__numpad_node)
+            parent = self.UI_Node__numpad_node, 
+            occupation = "yes or no"
+        )
         
         self.local_time: float = 0
         self.initial_set_remaining_time: float = 41
@@ -446,10 +458,9 @@ class GameStateInput(GameState):
                         if i == 11: # submit button
                             isValid = ValidCheckValue(self.input_field)
                             if not isValid:
-                                pass
+                                print("INPUT STATE: Invalid number")
                             else:
                                 self._focused_node = self.UI_Node_yes_no_node
-                                print("activation")
 
                         elif i == 10: # backspace button
                             self.input_field = self.input_field if self.input_field == "" else self.input_field[:-1]
@@ -469,15 +480,16 @@ class GameStateInput(GameState):
                     
                     if self._focused_node == self.UI_Node_yes_no_node:
                         if self.button__yes.is_clicked:
-                            print(f"[MAIN THREAD]: u have made your choice ({self.input_field})")
+                            print(f"[MAIN THREAD]: u have made your choice [{self.input_field}]")
                             self.application.data_input = int(self.input_field)
                             self._focused_node = self.UI_Node__numpad_node
                             self.input_field = ""
+                            self.application.players_pool[self.application.client_id].number = self.application.data_input
                             self.graphic_text__data_input.ChangeMessage(f"number: {self.input_field}", 
                                                                         self.application.WIDTH, 
                                                                         self.application.HEIGHT)
                         if self.button__no.is_clicked:
-                            self._focused_node == self.UI_Node__numpad_node
+                            self._focused_node = self.UI_Node__numpad_node
                             self.application.data_input = -1 
 
         for node in Trace:
@@ -533,7 +545,7 @@ class GameStateInput(GameState):
             number_choser: Player = self.application.players_pool[i]
             if type(number_choser) == Bot:
                 index = (j % len(threads_pool))
-                print(f"hello thread {index}")
+                print(f"[THREAD({index}) - {self.application.threads_pool[index].name}]: calculating number for bots")
                 threads_pool[index].action_queue.put({"function": number_choser.get_number, "args": ()})
                 j += 1
             i += 1
@@ -560,12 +572,12 @@ class GameStateInput(GameState):
             else:
                 self.application.current_state = self.application.state_dict["result"]
                 # start to calculate result phase gameloop function
-                self.application.threads_pool[0].action_queue.put({"function": self.application.current_state.gameloop.run, "args": ()})
                 self.ReviveOneTimeFunctions()
                 self.local_time = 0
                 self.remaining_time = self.initial_set_remaining_time
                 self.application.data_input = -1
                 self.input_field = ""
+                AsyncThread.thread_custom_join(self.application.threads_pool, self.application.thread_condition)
             
 
     def PreviousStage(self):
@@ -587,7 +599,7 @@ class GameStateInput(GameState):
             graphic.Draw(surface)
         self.graphical_drawing_queue.clear()
 
-        self.graphic_text__remaining_time.ChangeMessage(f"{int(self.remaining_time)}", self.application.WIDTH, self.application.HEIGHT)
+        self.graphic_text__remaining_time.ChangeMessage(f"{int(self.remaining_time)}", WIDTH, HEIGHT)
         self.graphic_text__remaining_time.Draw(surface)
 
         self.graphic_text__choosing_number.Draw(surface)
@@ -596,3 +608,329 @@ class GameStateInput(GameState):
         pg.display.flip()
         pg.display.set_caption(f"{self.application.clock.get_fps() // 1}")
         self.application.clock.tick(FPS)
+
+
+class GameStateResultPhrase(GameState):
+    def __init__(self, application):
+        super().__init__(application)
+        
+        self.gameloop: KingofDiamonds = KingofDiamonds(self.application.players_pool)
+        self.animation_tree: TimelineTree = TimelineTree([])
+
+        self.done_calculating_the_result: bool = False
+        self.done_creating_the_animation_tree: bool = False 
+        self.done_deep_copy_players_pool: bool = False
+
+        self.application_previous_players_pool: list[Player] = []
+
+        self.local_time: float = 0
+        self.remaining_time: float = 40
+
+
+        # waiting screen
+        self.graphic_text__calculating_the_result: GraphicText = GraphicText(
+            (0.5, 0.5), self.application.game_font, 
+            "Calculating the result...", True,
+            (255, 255, 255), self.application.WIDTH, self.application.HEIGHT
+        )
+        
+        # result screen (starts to create the animation tree)
+        self.graphic_text__round_over: GraphicText = GraphicText(
+            (0.5, 0.1), 
+            self.application.game_font, 
+            "[ROUND OVER]", 
+            True, 
+            (255, 255, 255), 
+            self.application.WIDTH, 
+            self.application.HEIGHT)
+        
+        self.graphic_text__ultimate_number: GraphicText = GraphicText(
+            (0.5, 0.75), self.application.game_font,
+            "Ultimate number: ...", True, 
+            (255, 255, 255), self.application.WIDTH, self.application.HEIGHT
+        )
+        self.graphic_text__timer: GraphicText = GraphicText(
+            (0.1, 0.9),
+            self.application.game_font,
+            f"{self.local_time}", True,
+            (255, 255, 255), self.application.WIDTH, self.application.HEIGHT
+        )
+
+        self.reserve_Thread__caculating_for_the_result_once = self.Thread__caculating_for_the_result_once
+        self.resesrve_Thread__create_an_animation_tree_once = self.Thread__create_an_animation_tree_once
+        self.reserved_Thread__deep_copy_players_pool_once = self.Thread__deep_copy_players_pool_once
+
+    def Update(self, dt):
+
+        # TEMP NOTE:
+        """
+        EASY:
+            done thread calculating for the result
+                imediatly create the animation tree
+            done the tree
+                then just spam update for the tree
+
+            the only tricky part here is to manage the thread and animtion tree (supupose 30 seconds long)
+                and how will we reutnr the winner
+                    the winning game state
+        """
+        self.local_time += dt
+        self.remaining_time -= dt
+
+        THREAD_INDEX_result_calculating: int = 0
+        THREAD_INDEX_deep_copy_players_pool: int = 1
+
+        # AsyncThread.thread_custom_join(self.application.threads_pool, self.application.thread_condition)
+        self.Thread__deep_copy_players_pool_once(THREAD_INDEX_deep_copy_players_pool)
+        self.Thread__caculating_for_the_result_once(THREAD_INDEX_result_calculating)
+
+        if self.done_calculating_the_result and self.done_deep_copy_players_pool: 
+            THREAD_INDEX_create_an_animation_tree: int = THREAD_INDEX_result_calculating
+            self.Thread__create_an_animation_tree_once(THREAD_INDEX_create_an_animation_tree)
+
+        for event in pg.event.get():
+            if event.type == QUIT:
+                self.application.running = False
+            if event.type == KEYDOWN:
+                if event.key == K_ESCAPE:
+                    self.application.running = False
+
+        if not self.done_creating_the_animation_tree:
+            pass
+        else:
+            self.animation_tree.Update(dt)
+        
+
+    def Render(self, surface: pg.surface.Surface):
+        self.application.screen.fill((0, 0, 0))
+
+        self.graphic_text__timer.ChangeMessage(f"timer: {self.local_time:.02f}", self.application.WIDTH, self.application.HEIGHT)
+        self.graphic_text__timer.Draw(surface)
+
+        if not self.done_creating_the_animation_tree:
+            self.graphic_text__calculating_the_result.Draw(surface)
+
+        else:
+            # for graphic in self.graphic_text__lobby_players_vitality:
+            #     graphic.Draw(surface)
+            # for graphic in self.graphic_text__previous_lobby_players_vitality:
+            #     graphic.Draw(surface)
+            
+            self.animation_tree.Render(surface, self.application.WIDTH, self.application.HEIGHT)
+        
+        pg.display.flip()
+        pg.display.set_caption(f"{self.application.clock.get_fps():.02f}")
+        self.application.clock.tick(FPS)
+    
+    def Thread__deep_copy_players_pool_once(self, index: int = 0):
+        def Deepcopy():
+            self.application_previous_players_pool = copy.deepcopy(self.application.players_pool)
+            self.done_deep_copy_players_pool = True
+        self.application.threads_pool[index].action_queue.put({"function": Deepcopy, "args": ()})
+        self.Thread__deep_copy_players_pool_once = lambda index: None
+
+    def Thread__caculating_for_the_result_once(self, index: int = 0):
+        def gameloop():
+            self.gameloop.Gameloop()
+            self.done_calculating_the_result = True
+        self.application.threads_pool[index].action_queue.put({"function": gameloop, "args": ()})
+        self.Thread__caculating_for_the_result_once = lambda index: None
+
+    def CreateAnAnimationTree(self):
+
+        # BUG BUG BUG BUG BUG BUG BUG BUG BUG BUG BUG BUG BUG BUG BUG BUG BUG BUG BUG BUG BUG
+        # thinking of the result (create it) (how it will turn out, what we will expect ...)
+        """
+        DRAFT:
+            FADE IN CONSECUTIVELY (name, previous_vitality, new_vatality)
+                [ROUND OVER FADE IN]
+            FADE IN THE ULTIMATE NUMBER
+
+            FLIPPING NUMBER ANIMAITON (OLD VATALITY AND NEW VATALITY)
+
+            SEND OUT eliminating players - no one => dont do that
+        """
+
+        def FadeIn(graphic: Graphic, t: float):
+            graphic.TextureSetAlpha(t * 255)
+        
+        def CenterSquashIn(graphic: Graphic, t: float):
+            graphic.ph = 0.045 * (1 - t)
+            graphic.texture = pg.transform.scale(graphic.original_texture, (self.application.WIDTH * graphic.pw, self.application.HEIGHT * graphic.ph))
+
+        def CenterSquashOut(graphic: Graphic, t: float):
+            graphic.ph = 0.045 * t
+            graphic.texture = pg.transform.scale(graphic.original_texture, (self.application.WIDTH * graphic.pw, self.application.HEIGHT * graphic.ph)) 
+
+        self.graphic_text__lobby_players_vitality: list[GraphicText] = [
+            GraphicText(
+                (self.application.lobby_pposition_sequence[i][0], self.application.lobby_pposition_sequence[i][1] + 0.2), 
+                self.application.game_font, 
+                f"{self.application.players_pool[i].vitality}", 
+                True, 
+                (255, 0, 0) if (self.application.players_pool[i].vitality - self.application_previous_players_pool[i].vitality < 0) else (255, 255, 255),
+                self.application.WIDTH, self.application.HEIGHT
+            ) for i in range(len(self.application.players_pool))
+        ]
+        self.graphic_text__previous_lobby_players_vitality: list[GraphicText] = [
+            GraphicText(
+                (self.application.lobby_pposition_sequence[i][0], self.application.lobby_pposition_sequence[i][1] + 0.2), 
+                self.application.game_font, 
+                f"{self.application_previous_players_pool[i].vitality}", 
+                True, (255, 255, 255), 
+                self.application.WIDTH, self.application.HEIGHT
+            ) for i in range(len(self.application_previous_players_pool))
+        ]
+
+
+        self.graphic_text__previous_players_lobby: list[GraphicText] = [
+            GraphicFrame(
+                (self.application.lobby_pposition_sequence[i]),
+                PLAYER_FRAME_PWIDTH, PLAYER_FRAME_PHEIGHT, 
+                self.application.lobby_player_themecolor_sequence[i], 
+                self.application.WIDTH, self.application.HEIGHT
+            ) for i in range(len(self.application_previous_players_pool))
+        ]
+        self.graphic_text__players_lobby_names: list[GraphicText] = [
+            GraphicText(
+                (self.application.lobby_pposition_sequence[i][0], self.application.lobby_pposition_sequence[i][1] + 0.1),
+                self.application.game_font, f"{self.application_previous_players_pool[i].name}", 
+                True, 
+                (255, 255, 255), 
+                self.application.WIDTH, self.application.HEIGHT
+            ) for i in range(len(self.application_previous_players_pool))
+        ]
+        self.graphic_text__players_pool_chosen_numbers: list[GraphicText] = [GraphicText(
+                (self.application.lobby_pposition_sequence[i][0], self.application.lobby_pposition_sequence[i][1] - 0.1), 
+                self.application.game_font, 
+                f"{self.application_previous_players_pool[i].number}",
+                True, (255, 255, 255),
+                self.application.WIDTH, self.application.HEIGHT
+            ) for i in range(len(self.application_previous_players_pool))
+        ]
+
+
+        the_winning_message = "the winning players are: " if self.gameloop.winners_list == 1 else "the winning player is: "
+        for player in self.gameloop.winners_list:
+            the_winning_message += f"{player.name}, "
+        the_winning_message = the_winning_message[:-2]
+
+        self.graphic_text__the_winning_player: GraphicText = GraphicText(
+            (0.5, 0.9),
+            self.application.game_font, 
+            the_winning_message, 
+            True, (255, 255, 255), 
+            self.application.WIDTH, self.application.HEIGHT
+        )
+
+
+        self.graphic_text__ultimate_number: GraphicText = GraphicText(
+            (0.5, 0.85), 
+            self.application.game_font, 
+            f"The ultimate number: {self.gameloop.ultimate_number}", True, 
+            (255, 255, 255), 
+            self.application.WIDTH, self.application.HEIGHT
+        )
+        
+
+        wakeup_interval: float = 0.25
+
+        # for chosen numbers, frame, name
+        for i in range(len(self.application.players_pool)):
+            banner_timelineleaf: TimelineLeaf = TimelineLeaf(
+                CustomAnimation(1), 
+                wakeup_interval * (i + 1), 
+                self.graphic_text__previous_players_lobby[i], 
+                FadeIn
+            )
+            name_timelineleaf: TimelineLeaf = TimelineLeaf(
+                CustomAnimation(1), 
+                wakeup_interval * (i + 1), 
+                self.graphic_text__players_lobby_names[i], 
+                FadeIn
+            )
+            chosen_number_timelineleaf: TimelineLeaf = TimelineLeaf(
+                CustomAnimation(1),
+                wakeup_interval * (i + 1) + 0.25,
+                self.graphic_text__players_pool_chosen_numbers[i],
+                FadeIn
+            )
+
+            current_vitality_timelineleaf: TimelineLeaf = TimelineLeaf(
+                CustomAnimation(1), 
+                wakeup_interval * (i + 1) + 0.5, self.graphic_text__lobby_players_vitality[i], FadeIn 
+            )
+            previous_vitality_timelineleaf: TimelineLeaf = TimelineLeaf(
+                CustomAnimation(1), 
+                wakeup_interval * (i + 1) + 0.5, self.graphic_text__previous_lobby_players_vitality[i], FadeIn 
+            )
+
+            banner_timelineleaf.binding_object.TextureSetAlpha(0)
+            name_timelineleaf.binding_object.TextureSetAlpha(0)
+            chosen_number_timelineleaf.binding_object.TextureSetAlpha(0)
+            current_vitality_timelineleaf.binding_object.TextureSetAlpha(0)
+            previous_vitality_timelineleaf.binding_object.TextureSetAlpha(0)
+
+            self.animation_tree.timelineleaves_list.append(banner_timelineleaf)
+            self.animation_tree.timelineleaves_list.append(name_timelineleaf)
+            self.animation_tree.timelineleaves_list.append(chosen_number_timelineleaf)
+            self.animation_tree.timelineleaves_list.append(current_vitality_timelineleaf)
+            self.animation_tree.timelineleaves_list.append(previous_vitality_timelineleaf)
+        
+        # for squashing vitality coeficient
+        starting_tick = wakeup_interval * (len(self.application_previous_players_pool) + 1) + 1
+        for i in range(len(self.application_previous_players_pool)):
+            previous_vitality_squashing_in_timeline_leaf: TimelineLeaf = TimelineLeaf(
+                CustomAnimation(0.25), 
+                starting_tick, 
+                self.graphic_text__previous_lobby_players_vitality[i],
+                CenterSquashIn          
+            ) 
+            current_vitality_squashing_out_timeline_leaf: TimelineLeaf = TimelineLeaf(
+                CustomAnimation(0.25), 
+                starting_tick + 0.25, 
+                self.graphic_text__lobby_players_vitality[i],
+                CenterSquashOut
+            )
+            CenterSquashOut(current_vitality_squashing_out_timeline_leaf.binding_object, 0)
+
+            self.animation_tree.timelineleaves_list.append(previous_vitality_squashing_in_timeline_leaf)
+            self.animation_tree.timelineleaves_list.append(current_vitality_squashing_out_timeline_leaf)
+
+
+        ultimate_number_timelineleaf: TimelineLeaf = TimelineLeaf(
+            CustomAnimation(1), 
+            wakeup_interval * len(self.graphic_text__previous_lobby_players_vitality) + 1, 
+            self.graphic_text__ultimate_number, 
+            FadeIn
+        )
+        ultimate_number_timelineleaf.binding_object.TextureSetAlpha(0)
+        self.animation_tree.timelineleaves_list.append(ultimate_number_timelineleaf)
+
+        # winning player text fade in
+        winning_player_timelineleaf: TimelineLeaf = TimelineLeaf(
+            CustomAnimation(1),
+            wakeup_interval * len(self.graphic_text__previous_lobby_players_vitality) + 3,
+            self.graphic_text__the_winning_player, FadeIn
+        )
+        winning_player_timelineleaf.binding_object.TextureSetAlpha(0)
+        self.animation_tree.timelineleaves_list.append(winning_player_timelineleaf)
+
+        
+        self.done_creating_the_animation_tree: bool = True
+
+    
+    def Thread__create_an_animation_tree_once(self, index: int):
+        self.application.threads_pool[index].action_queue.put({"function": self.CreateAnAnimationTree, "args": ()})
+        self.Thread__create_an_animation_tree_once = lambda index: None
+    
+
+    def ReviveOneTimeFunctions(self):
+        self.Thread__caculating_for_the_result_once = self.reserve_Thread__caculating_for_the_result_once
+        self.Thread__deep_copy_players_pool_once = self.reserved_Thread__deep_copy_players_pool_once
+        self.Thread__create_an_animation_tree_once = self.resesrve_Thread__create_an_animation_tree_once
+    
+    def ResetLogicSwitches(self):
+        self.done_calculating_the_result = False
+        self.done_deep_copy_players_pool = False
+        self.done_creating_the_animation_tree = False
